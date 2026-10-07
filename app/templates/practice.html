@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>{{ question.id }} - ML4T Practice</title>
+<script>
+  // Apply saved theme before first paint to avoid a flash of the wrong theme.
+  if (localStorage.getItem('ml4t-theme') === 'dark') document.documentElement.classList.add('dark');
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors">
+<button id="theme-toggle" onclick="ml4tToggleTheme()" aria-pressed="false"
+        class="fixed top-4 right-4 z-50 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 text-sm shadow-sm hover:shadow transition">
+  Dark
+</button>
+<div class="max-w-3xl mx-auto px-4 py-6">
+
+  <div class="flex items-center justify-between mb-4 text-sm">
+    <a href="/" class="text-indigo-600 dark:text-indigo-400 hover:underline">&larr; Back to selection</a>
+    <span class="text-slate-500 dark:text-slate-400">Question {{ pos + 1 }} of {{ total }} &middot; {{ question.id }}</span>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-5">
+    <p class="text-xs uppercase tracking-wide text-indigo-500 dark:text-indigo-400 font-semibold mb-2">
+      {{ question.subject }} &middot; Domain {{ question.domain_num }}: {{ question.domain_title }} &middot; Group {{ question.group_num }}: {{ question.group_title }}
+    </p>
+    <p class="text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-line">{{ question.scenario }}</p>
+    {% if question.answer_note %}
+    <p class="mt-3 text-sm bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded px-3 py-2">
+      Note on this question's key: {{ question.answer_note }}
+    </p>
+    {% endif %}
+  </div>
+
+  <!-- Unsorted tray -->
+  <div id="tray" class="bucket mb-4 bg-white dark:bg-slate-800 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 p-4 min-h-[70px]"
+       data-status="unsorted">
+    <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase mb-2">Drag statements below into True or False &rarr;</p>
+    <div class="card-slot flex flex-wrap gap-2"></div>
+  </div>
+
+  <div class="grid sm:grid-cols-2 gap-4 mb-5">
+    <div id="bucket-true" class="bucket bg-emerald-50 dark:bg-emerald-950 rounded-xl border-2 border-emerald-200 dark:border-emerald-800 p-4 min-h-[140px]" data-status="true">
+      <p class="text-sm font-bold text-emerald-700 dark:text-emerald-300 uppercase mb-2">True</p>
+      <div class="card-slot flex flex-col gap-2"></div>
+    </div>
+    <div id="bucket-false" class="bucket bg-rose-50 dark:bg-rose-950 rounded-xl border-2 border-rose-200 dark:border-rose-800 p-4 min-h-[140px]" data-status="false">
+      <p class="text-sm font-bold text-rose-700 dark:text-rose-300 uppercase mb-2">False</p>
+      <div class="card-slot flex flex-col gap-2"></div>
+    </div>
+  </div>
+
+  <div id="statement-source" class="hidden">
+    {% for s in question.statements %}
+    <div class="statement-card bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 shadow-sm cursor-grab select-none"
+         draggable="true" data-letter="{{ s.letter }}" data-correct="{{ 'true' if s.answer else 'false' }}">
+      <div class="flex items-start gap-2">
+        <span class="font-bold text-slate-500 dark:text-slate-400">{{ s.letter }}.</span>
+        <span class="statement-text flex-1 text-sm">{{ s.text }}</span>
+      </div>
+      <div class="status-buttons flex gap-2 mt-2">
+        <button type="button" class="btn-true text-xs px-2 py-1 rounded border border-emerald-400 dark:border-emerald-600 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900">Mark True</button>
+        <button type="button" class="btn-false text-xs px-2 py-1 rounded border border-rose-400 dark:border-rose-600 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900">Mark False</button>
+      </div>
+      <p class="explanation hidden mt-2 text-sm border-t dark:border-slate-600 pt-2 text-slate-600 dark:text-slate-300">{{ s.explanation }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 mb-6">
+    <div id="result-summary" class="text-sm font-medium text-slate-600 dark:text-slate-300"></div>
+    <div class="flex gap-2">
+      <button id="reset-btn" onclick="resetCards()" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm">Reset</button>
+      <button id="check-btn" onclick="checkAnswers()" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Check Answer</button>
+    </div>
+  </div>
+
+  <div class="flex items-center justify-between text-sm">
+    {% if has_prev %}
+    <a href="/practice?qs={{ qs }}&pos={{ pos - 1 }}&subject={{ subject }}" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-white dark:hover:bg-slate-800">&larr; Previous</a>
+    {% else %}<span></span>{% endif %}
+    {% if has_next %}
+    <a href="/practice?qs={{ qs }}&pos={{ pos + 1 }}&subject={{ subject }}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">Next &rarr;</a>
+    {% else %}
+    <a href="/" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Finish &amp; back to selection</a>
+    {% endif %}
+  </div>
+</div>
+
+<script src="/static/theme.js"></script>
+<script src="/static/practice.js"></script>
+</body>
+</html>

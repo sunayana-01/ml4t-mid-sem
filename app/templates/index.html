@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ML4T Exam Question Pool - Practice</title>
+<script>
+  // Apply saved theme before first paint to avoid a flash of the wrong theme.
+  if (localStorage.getItem('ml4t-theme') === 'dark') document.documentElement.classList.add('dark');
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors">
+<button id="theme-toggle" onclick="ml4tToggleTheme()" aria-pressed="false"
+        class="fixed top-4 right-4 z-50 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 text-sm shadow-sm hover:shadow transition">
+   Dark
+</button>
+<div class="max-w-5xl mx-auto px-4 py-8">
+
+  <header class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">ML4T Exam Question Pool</h1>
+    <p class="text-slate-600 dark:text-slate-400 mt-1">Pick what you want to drill, then sort each statement into the True or False bucket.</p>
+  </header>
+
+  <!-- Subject tabs -->
+  <div class="flex gap-2 mb-6" role="tablist" aria-label="Subject">
+    <button id="tab-ML" class="subject-tab px-5 py-2 rounded-t-lg font-semibold border-b-4 border-indigo-600 bg-white dark:bg-slate-800"
+            onclick="selectSubject('ML')" role="tab" aria-selected="true">
+      {{ subjects.ML.label }}
+    </button>
+    <button id="tab-QF" class="subject-tab px-5 py-2 rounded-t-lg font-semibold border-b-4 border-transparent bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-500"
+            onclick="selectSubject('QF')" role="tab" aria-selected="false">
+      {{ subjects.QF.label }}
+    </button>
+  </div>
+  <p class="text-xs text-slate-500 dark:text-slate-400 -mt-4 mb-6">Machine Learning and Quantitative Finance are kept separate - pick one subject per practice set.</p>
+
+  {% for subj_key, subj in subjects.items() %}
+  <section id="panel-{{ subj_key }}" class="subject-panel {% if subj_key != 'ML' %}hidden{% endif %} bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6">
+
+    <label class="flex items-center gap-3 mb-5 p-3 bg-indigo-50 dark:bg-indigo-950 rounded-lg cursor-pointer">
+      <input type="checkbox" class="final-part-cb w-5 h-5 accent-indigo-600"
+             data-subject="{{ subj_key }}" onchange="toggleFinalPart('{{ subj_key }}', this.checked)" />
+      <span class="font-semibold text-indigo-900 dark:text-indigo-200">Final Part - all {{ subj.domains|length }} domains, every question ({{ subj.domains|map(attribute='question_ids')|map('length')|sum }})</span>
+    </label>
+
+    <div class="space-y-3">
+      {% for domain in subj.domains %}
+      <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+        <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-900 px-4 py-2.5">
+          <label class="flex items-center gap-3 cursor-pointer flex-1">
+            <input type="checkbox" class="domain-cb w-4 h-4 accent-indigo-600"
+                   data-subject="{{ subj_key }}" data-domain="{{ domain.num }}"
+                   onchange="toggleDomain('{{ subj_key }}', {{ domain.num }}, this.checked)" />
+            <span class="font-medium">Domain {{ domain.num }}: {{ domain.title }}</span>
+            <span class="text-xs text-slate-400 dark:text-slate-500">({{ domain.question_ids|length }} questions)</span>
+          </label>
+          <button type="button" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline ml-2" onclick="toggleExpand(this)">
+            show groups
+          </button>
+        </div>
+        <div class="group-list hidden px-4 py-2 grid sm:grid-cols-2 gap-x-4 gap-y-1 bg-white dark:bg-slate-800">
+          {% for group in domain.groups %}
+          <label class="flex items-center gap-2 py-1 text-sm cursor-pointer">
+            <input type="checkbox" class="group-cb w-4 h-4 accent-indigo-500"
+                   data-subject="{{ subj_key }}" data-domain="{{ domain.num }}"
+                   data-ids="{{ group.question_ids|join(',') }}"
+                   onchange="onGroupChange('{{ subj_key }}', {{ domain.num }})" />
+            <span>G{{ group.num }}: {{ group.title }} <span class="text-slate-400 dark:text-slate-500">({{ group.question_ids|length }})</span></span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- full ordered id list for this subject, used to preserve canonical order when building a set -->
+    <script type="application/json" id="order-{{ subj_key }}">
+      {{ subj.domains|map(attribute='question_ids')|sum(start=[])|tojson }}
+    </script>
+  </section>
+  {% endfor %}
+
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-wrap items-center justify-between gap-4">
+    <fieldset class="flex items-center gap-5">
+      <legend class="sr-only">Question order</legend>
+      <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Order:</span>
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="radio" name="order" value="none" checked class="accent-indigo-600" /> None (original order)
+      </label>
+      <label class="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="radio" name="order" value="random" class="accent-indigo-600" /> Randomize
+      </label>
+    </fieldset>
+
+    <div class="flex items-center gap-3">
+      <span id="selected-count" class="text-sm text-slate-500 dark:text-slate-400">0 questions selected</span>
+      <button onclick="viewQuestions()"
+              class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-lg shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              id="view-btn" disabled>
+        View Questions
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/theme.js"></script>
+<script>
+let currentSubject = 'ML';
+
+function selectSubject(subj) {
+  currentSubject = subj;
+  for (const s of ['ML', 'QF']) {
+    document.getElementById('panel-' + s).classList.toggle('hidden', s !== subj);
+    const tab = document.getElementById('tab-' + s);
+    tab.classList.toggle('border-indigo-600', s === subj);
+    tab.classList.toggle('bg-white', s === subj);
+    tab.classList.toggle('border-transparent', s !== subj);
+    tab.classList.toggle('bg-slate-100', s !== subj);
+    tab.classList.toggle('text-slate-500', s !== subj);
+    tab.setAttribute('aria-selected', s === subj);
+  }
+  updateCount();
+}
+
+function toggleExpand(btn) {
+  const list = btn.closest('.border').querySelector('.group-list');
+  list.classList.toggle('hidden');
+  btn.textContent = list.classList.contains('hidden') ? 'show groups' : 'hide groups';
+}
+
+function toggleFinalPart(subj, checked) {
+  document.querySelectorAll(`#panel-${subj} .domain-cb`).forEach(cb => { cb.checked = checked; cb.indeterminate = false; });
+  document.querySelectorAll(`#panel-${subj} .group-cb`).forEach(cb => cb.checked = checked);
+  updateCount();
+}
+
+function toggleDomain(subj, domainNum, checked) {
+  document.querySelectorAll(`#panel-${subj} .group-cb[data-domain="${domainNum}"]`).forEach(cb => cb.checked = checked);
+  syncFinalPart(subj);
+  updateCount();
+}
+
+function onGroupChange(subj, domainNum) {
+  const groupCbs = document.querySelectorAll(`#panel-${subj} .group-cb[data-domain="${domainNum}"]`);
+  const domainCb = document.querySelector(`#panel-${subj} .domain-cb[data-domain="${domainNum}"]`);
+  const checkedCount = [...groupCbs].filter(cb => cb.checked).length;
+  domainCb.checked = checkedCount === groupCbs.length;
+  domainCb.indeterminate = checkedCount > 0 && checkedCount < groupCbs.length;
+  syncFinalPart(subj);
+  updateCount();
+}
+
+function syncFinalPart(subj) {
+  const domainCbs = document.querySelectorAll(`#panel-${subj} .domain-cb`);
+  const finalCb = document.querySelector(`#panel-${subj} .final-part-cb`);
+  const fullyChecked = [...domainCbs].filter(cb => cb.checked && !cb.indeterminate).length;
+  const anyChecked = [...domainCbs].some(cb => cb.checked || cb.indeterminate);
+  finalCb.checked = fullyChecked === domainCbs.length;
+  finalCb.indeterminate = anyChecked && fullyChecked !== domainCbs.length;
+}
+
+function getSelectedIds(subj) {
+  const idSet = new Set();
+  document.querySelectorAll(`#panel-${subj} .group-cb:checked`).forEach(cb => {
+    cb.dataset.ids.split(',').forEach(id => id && idSet.add(id));
+  });
+  const order = JSON.parse(document.getElementById('order-' + subj).textContent);
+  return order.filter(id => idSet.has(id));
+}
+
+function updateCount() {
+  const ids = getSelectedIds(currentSubject);
+  document.getElementById('selected-count').textContent = `${ids.length} question${ids.length === 1 ? '' : 's'} selected`;
+  document.getElementById('view-btn').disabled = ids.length === 0;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function viewQuestions() {
+  let ids = getSelectedIds(currentSubject);
+  if (ids.length === 0) return;
+  const order = document.querySelector('input[name="order"]:checked').value;
+  if (order === 'random') ids = shuffle(ids);
+  const qs = encodeURIComponent(ids.join(','));
+  window.location.href = `/practice?qs=${qs}&pos=0&subject=${currentSubject}`;
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target.matches('.group-cb, .domain-cb, .final-part-cb')) updateCount();
+});
+</script>
+</body>
+</html>
